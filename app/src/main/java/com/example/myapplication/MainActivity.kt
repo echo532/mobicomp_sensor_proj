@@ -61,7 +61,7 @@ fun MainScreen() {
 
     // current context of app, used for toast
     val context = LocalContext.current
-    val currentTime = remember { //cannot use .now(), invalid for API 24
+    var prevTime = remember { //cannot use .now(), invalid for API 24
         val calendar = Calendar.getInstance()
         calendar.timeInMillis
     }
@@ -69,14 +69,15 @@ fun MainScreen() {
 
     //used to add toast messages when movementType changes
     LaunchedEffect(movementType) { // Runs every time 'counter' changes
-        var nextTime = Calendar.getInstance().timeInMillis
-        val differenceInMillis = nextTime - currentTime
 
+        //get time between last activity start
+        var nextTime = Calendar.getInstance().timeInMillis
+        val differenceInMillis = nextTime - prevTime
         val minutes = (differenceInMillis / 1000) / 60
         val seconds = (differenceInMillis / 1000) % 60
+        prevTime = nextTime // reassign last time
 
-        val formattedTime = "$minutes minutes, $seconds seconds."
-
+        // makes text appear grammatically correct
         var properType = ""
         when (previousMovementType){
             "Still" -> properType = "stood still"
@@ -84,15 +85,12 @@ fun MainScreen() {
             "Running" -> properType = "ran"
             "Driving" -> properType = "drove"
         }
+        val formattedTime = "$minutes minutes, $seconds seconds."
 
         Toast.makeText(context, "You have just $properType for $formattedTime", Toast.LENGTH_SHORT).show()
-        previousMovementType = movementType
+        previousMovementType = movementType // track current movement type
 
     }
-
-
-
-
 
 
     Column(
@@ -112,18 +110,16 @@ fun MainScreen() {
 
         Button(onClick = {
             movementType = "Walking"
-            //Toast.makeText(context, "Remove This button", Toast.LENGTH_SHORT).show()
         }) {
             Text("Remove this button")
         }
 
         // Text Placeholders
-        TextPlaceholder(getTextContent1())
-        TextPlaceholder(getTextContent2())
-        TextPlaceholder(getTextContent3())
+        GeoFenceText("Campus Center")
+        GeoFenceText("Unity Hall")
+        StepCountText()
 
         Spacer(modifier = Modifier.height(20.dp))
-
 
         MapImage()
 
@@ -134,19 +130,37 @@ fun MainScreen() {
         Spacer(modifier = Modifier.height(20.dp))
 
         // Bottom Text Placeholder
-        TextPlaceholder(getBottomText(movementType))
+        Text(text = "you are $movementType", fontSize = 18.sp, color = Color.White)
     }
 }
-
-
 
 @Composable
 fun TextPlaceholder(text: String) {
     Text(text = text, fontSize = 18.sp, color = Color.White)
 }
+@Composable
+fun GeoFenceText(location: String) {
+    //TODO: Geofence code call
+    /*
+     if location = Campus Center then....
+     else location == Unity Hall then....
+     */
+    var number = 0
+    val output = "Visits to $location geoFence: $number"
+    Text(text = output, fontSize = 18.sp, color = Color.White)
+}
+
+@Composable
+fun StepCountText() {
+    //TODO: Step Count code call
+    var number = 0
+    val output = "Steps taken since app started: $number"
+    Text(text = output, fontSize = 18.sp, color = Color.White)
+}
 
 @Composable
 fun MapImage() {
+    //TODO: make map appear
     Box(
         modifier = Modifier
             .size(200.dp)
@@ -172,9 +186,6 @@ fun ImageHolder(movementType: String) {
     )
 }
 
-fun getTextContent1() = "Visits to Campus Center geoFence:"
-fun getTextContent2() = "Visits to Unity Hall geoFence:"
-fun getTextContent3() = "Steps taken since app started:"
 fun getBottomText(value: String) = "You are $value"
 
 @Preview(showBackground = true)
