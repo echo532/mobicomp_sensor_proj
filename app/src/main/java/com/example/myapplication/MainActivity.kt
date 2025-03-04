@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,6 +54,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
 
+
+    var campusCenterCount by remember { mutableIntStateOf(0) }
+
+    var unityHallCount by remember {mutableStateOf(0)}
+
+    var stepCount by remember {mutableStateOf(0)}
+
     //Stores the movement type of the user, starts at Still
     var movementType by remember {mutableStateOf("Still")}
 
@@ -65,6 +73,12 @@ fun MainScreen() {
         val calendar = Calendar.getInstance()
         calendar.timeInMillis
     }
+
+    //TODO: movement type tracker code
+
+    //TODO: geofencing tracking code
+
+    //TODO: step count tracking code
 
 
     //used to add toast messages when movementType changes
@@ -115,9 +129,11 @@ fun MainScreen() {
         }
 
         // Text Placeholders
-        GeoFenceText("Campus Center")
-        GeoFenceText("Unity Hall")
-        StepCountText()
+        Text(text = "Visits to Unity Hall geoFence: $campusCenterCount", fontSize = 18.sp, color = Color.White)
+
+        Text(text = "Visits to Unity Hall geoFence: $unityHallCount", fontSize = 18.sp, color = Color.White)
+
+        Text(text = "Steps taken since app started: $stepCount", fontSize = 18.sp, color = Color.White)
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -134,29 +150,6 @@ fun MainScreen() {
     }
 }
 
-@Composable
-fun TextPlaceholder(text: String) {
-    Text(text = text, fontSize = 18.sp, color = Color.White)
-}
-@Composable
-fun GeoFenceText(location: String) {
-    //TODO: Geofence code call
-    /*
-     if location = Campus Center then....
-     else location == Unity Hall then....
-     */
-    var number = 0
-    val output = "Visits to $location geoFence: $number"
-    Text(text = output, fontSize = 18.sp, color = Color.White)
-}
-
-@Composable
-fun StepCountText() {
-    //TODO: Step Count code call
-    var number = 0
-    val output = "Steps taken since app started: $number"
-    Text(text = output, fontSize = 18.sp, color = Color.White)
-}
 
 @Composable
 fun MapImage() {
@@ -186,10 +179,3 @@ fun ImageHolder(movementType: String) {
     )
 }
 
-fun getBottomText(value: String) = "You are $value"
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewMainScreen() {
-    MainScreen()
-}
