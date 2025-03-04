@@ -1,5 +1,7 @@
 package com.example.myapplication
 
+import StepCounter
+import android.content.pm.PackageManager
 import android.icu.util.Calendar
 import android.os.Bundle
 import android.widget.Toast
@@ -8,23 +10,19 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,31 +33,52 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.ui.theme.MyApplicationTheme
-import java.time.LocalDateTime
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+
+
 
 class MainActivity : ComponentActivity() {
+    val STEP_PERMISSIONS = arrayOf(
+        android.Manifest.permission.ACTIVITY_RECOGNITION
+    )
+    fun hasStepPermission(): Boolean {
+        //gpt
+        return ContextCompat.checkSelfPermission(
+            applicationContext,
+            android.Manifest.permission.ACTIVITY_RECOGNITION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+       if(!hasStepPermission()){
+           ActivityCompat.requestPermissions(
+               this, STEP_PERMISSIONS, 0
+           )
+       }
+
         enableEdgeToEdge()
         setContent {
             MainScreen()
         }
     }
+
+
 }
+
 
 @Composable
 fun MainScreen() {
-
+    val context = LocalContext.current
+    val stepCounter = remember{ StepCounter(context.applicationContext) }
 
     var campusCenterCount by remember { mutableIntStateOf(0) }
 
     var unityHallCount by remember {mutableStateOf(0)}
 
-    var stepCount by remember {mutableStateOf(0)}
 
     //Stores the movement type of the user, starts at Still
     var movementType by remember {mutableStateOf("Still")}
@@ -68,7 +87,7 @@ fun MainScreen() {
     var previousMovementType by remember {mutableStateOf(movementType)}
 
     // current context of app, used for toast
-    val context = LocalContext.current
+
     var prevTime = remember { //cannot use .now(), invalid for API 24
         val calendar = Calendar.getInstance()
         calendar.timeInMillis
@@ -79,6 +98,13 @@ fun MainScreen() {
     //TODO: geofencing tracking code
 
     //TODO: step count tracking code
+    LaunchedEffect(Unit) {
+        //only called when screen loads
+        stepCounter.startListen()
+    }
+
+    val stepCount by stepCounter.stepCount.collectAsState()
+
 
 
     //used to add toast messages when movementType changes
