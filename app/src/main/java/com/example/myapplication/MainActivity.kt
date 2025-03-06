@@ -85,6 +85,25 @@ class MainActivity : ComponentActivity() {
         if (!hasLocationPermission()) {
             ActivityCompat.requestPermissions(this, LOCATION_PERMISSIONS, LOCATION_PERMISSION_REQUEST_CODE)
         }
+        // Ensure high-accuracy location updates
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        val locationRequest = com.google.android.gms.location.LocationRequest.create().apply {
+            priority = com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
+            interval = 10 * 1000  // Request location update every 10 seconds
+            fastestInterval = 5 * 1000  // Fastest update interval of 5 seconds
+        }
+
+        val locationCallback = object : com.google.android.gms.location.LocationCallback() {
+            override fun onLocationResult(locationResult: com.google.android.gms.location.LocationResult) {
+                for (location in locationResult.locations) {
+                    Log.d(TAG, "Updated Location: Lat = ${location.latitude}, Lng = ${location.longitude}")
+                }
+            }
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
+        }
         resetGeofenceCounts()
         geofencingClient = LocationServices.getGeofencingClient(this)
         enableEdgeToEdge()
@@ -113,8 +132,8 @@ class MainActivity : ComponentActivity() {
             .build()
     }
 
-    private val unityHallGeofence = createGeofence("UNITY_HALL", 42.2681091, -71.8095893, 100f)
-    private val campusCenterGeofence = createGeofence("CAMPUS_CENTER", 42.2687881, -71.8112722, 100f)
+    private val unityHallGeofence = createGeofence("UNITY_HALL", 42.2733479, -71.8062222, 50f)
+    private val campusCenterGeofence = createGeofence("CAMPUS_CENTER", 42.2749496, -71.8084176, 70f)
 
     private fun createGeofencingRequest(): GeofencingRequest {
         return GeofencingRequest.Builder()
@@ -302,16 +321,6 @@ fun MainScreen() {
             delay(1000) // Check every second
         }
     }
-    /*
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(10000) // Wait for 10 seconds (10,000 milliseconds)
-            fetchUserLocation(context) { lat, lng ->
-                locationCoordinates = "Location: Lat = $lat, Lng = $lng"
-                //Toast.makeText(context, "Fetched location after 10 seconds: Lat = $lat, Lng = $lng", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }*/
     Column(
         modifier = Modifier
             .fillMaxHeight()
