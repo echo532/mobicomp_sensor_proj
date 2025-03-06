@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import kotlinx.coroutines.tasks.await
 import StepCounter
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.Geofence
@@ -353,33 +355,63 @@ fun MainScreen() {
     }
 }
 
-private fun fetchUserLocation(context: Context, onLocationFetched: (lat: Double, lng: Double) -> Unit) {
-    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    if (ActivityCompat.checkSelfPermission(
-            context,
-            android.Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-    ) {
-        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                val latitude = location.latitude
-                val longitude = location.longitude
-                onLocationFetched(latitude, longitude)
-            } else {
-                Log.e("Location", "Location is null")
+//https://github.com/android/platform-samples/blob/main/samples/location/src/main/java/com/example/platform/location/currentLocation/CurrentLocationScreen.kt
+@Composable
+fun MapImage() {
+    //TODO: make map appear
+
+    val context = LocalContext.current
+    val mapV = remember { MapView(context) }
+    var googleMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+
+    val locationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+
+    var userLocation by remember { mutableStateOf<LatLng>((LatLng(-34.0, 151.0))) }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+
+            val loc = locationClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token
+            ).await()
+
+            loc?.let {
+                userLocation = LatLng(it.latitude, it.longitude)
             }
         }
     }
+
+    LaunchedEffect(userLocation) {
+        googleMapInstance?.let { googleMap ->
+            googleMap.clear()
+            googleMap.addMarker(MarkerOptions().position(userLocation).title("You are here"))
+            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15f))
+        }
+    }
+
+    //https://developers.google.com/maps/documentation/android-sdk/map
+    AndroidView(
+        factory = { mapV },
+        modifier = Modifier.size(200.dp).background(Color.Gray, shape = RoundedCornerShape(8.dp)),
+        update = { map ->
+            map.onCreate(Bundle())
+            map.getMapAsync { googleMap ->
+                googleMapInstance = googleMap
+                googleMap.addMarker(MarkerOptions().position(userLocation).title("Default marker"))
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 10f))
+            }
+            map.onResume()
+        }
+    )
 }
 
-@Composable
-fun MapImage() {
-    Box(
-        modifier = Modifier
-            .size(200.dp)
-            .background(Color.Gray, shape = RoundedCornerShape(8.dp))
-    ) {}
-}
 
 @Composable
 fun ImageHolder(movementType: String) {
