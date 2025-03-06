@@ -3,12 +3,15 @@ package com.example.myapplication
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.google.android.gms.location.ActivityTransitionResult
 
-class ActivityTransitionReceiver : BroadcastReceiver() {
+class ActivityRecognitionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
+        Log.d("BROADCAST", ActivityTransitionResult.hasResult(intent).toString())
         if (intent != null && ActivityTransitionResult.hasResult(intent)) {
             val result = ActivityTransitionResult.extractResult(intent)
+            Log.d("BROADCAST", "Broadcast has passed")
 
             result?.transitionEvents?.forEach { event ->
                 val activityType = when (event.activityType) {

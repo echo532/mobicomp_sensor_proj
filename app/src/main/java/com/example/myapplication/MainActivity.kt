@@ -45,31 +45,50 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
+import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.compose.runtime.DisposableEffect
 import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.location.*
 import com.google.android.gms.location.ActivityRecognition
 
 class MainActivity : ComponentActivity() {
-    val STEP_PERMISSIONS = arrayOf(
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    val ACTIVITY_RECOGNITION = arrayOf(
         android.Manifest.permission.ACTIVITY_RECOGNITION
     )
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     fun hasStepPermission(): Boolean {
-        //gpt
         return ContextCompat.checkSelfPermission(
             applicationContext,
             android.Manifest.permission.ACTIVITY_RECOGNITION
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!hasStepPermission()) {
-            ActivityCompat.requestPermissions(
-                this, STEP_PERMISSIONS, 0
-            )
-        } else{
-            requestActivityUpdates()
+
+        // Request permission if it's not granted
+        if (hasStepPermission()) {
+            // Permission already granted, proceed with activity recognition logic
+            requestActivityUpdates()  // Call your method to request activity updates
+        } else {
+            // Check for permissions
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    ACTIVITY_RECOGNITION,
+                    100
+                )
+            }
         }
 
         enableEdgeToEdge()
@@ -78,80 +97,92 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Handle permission result
+//    fun onRequestPermissionsResult(
+//        requestCode: Int,
+//        permissions: Array<out String>,
+//        grantResults: IntArray
+//    ) {
+//
+//        // Check if the request code matches the one used when requesting permission
+//        if (requestCode == 100) {
+//            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+//                // Permission granted, start requesting activity updates
+//                Log.d("ActivityRecognition", "Permission granted.")
+//                requestActivityUpdates()
+//            } else {
+//                // Permission denied, show a message or handle accordingly
+//                Log.d("ActivityRecognition", "Permission denied.")
+//                Toast.makeText(this, "Permission denied. Activity recognition unavailable.", Toast.LENGTH_SHORT).show()
+//            }
+//        }
+//    }
+
+    // Method to request activity updates
     fun requestActivityUpdates() {
-        var transitionList = listOf(
+        val transitionList = listOf(
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.WALKING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.WALKING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
-
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.RUNNING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.RUNNING)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
-
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.IN_VEHICLE)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.IN_VEHICLE)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
-
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.STILL)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
-                .build(),
-            /*ActivityTransition.Builder()
-                .setActivityType(DetectedActivity.STILL)
-                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()*/
+                .build()
         )
 
-        var req = ActivityTransitionRequest(transitionList)
+        val req = ActivityTransitionRequest(transitionList)
 
-        var intent = Intent(this, ActivityTransitionReceiver::class.java)
-        var pendingIntent = PendingIntent.getBroadcast(
+        val intent = Intent(this, ActivityRecognitionReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
             this,
             0,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
 
-        var activityRecognition = ActivityRecognition.getClient(this)
+        Log.d("ActivityRecognition", "Requesting activity recognition updates...")
 
+        val activityRecognition = ActivityRecognition.getClient(this)
+
+        // Check permission BEFORE making the request
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACTIVITY_RECOGNITION
-            ) != PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
         ) {
-            ActivityCompat.requestPermissions(
-                this, STEP_PERMISSIONS, 0
-            )
+            activityRecognition
+                .requestActivityTransitionUpdates(req, pendingIntent)
+                .addOnSuccessListener {
+                    Log.d("ActivityRecognition", "Activity transition updates started successfully.")
+                    Toast.makeText(this, "Activity Recognition Started", Toast.LENGTH_SHORT).show()
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ActivityRecognition", "Failed to Start Activity Recognition", e)
+                    Toast.makeText(this, "Failed to Start Activity Recognition", Toast.LENGTH_SHORT).show()
+                }
+        } else {
+            Log.d("ActivityRecognition", "Permission is not granted, cannot request updates.")
         }
-        activityRecognition
-            .requestActivityTransitionUpdates(req, pendingIntent)
-            .addOnSuccessListener {
-                Toast.makeText(this, "Activity Recognition Started", Toast.LENGTH_SHORT).show()
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "Failed to Start Activity Recognition", Toast.LENGTH_SHORT).show()
-            }
     }
+
+    // Any other methods you want to use, like enableEdgeToEdge, MainScreen(), etc.
 }
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    Log.d("ACTIVITY", "Test call")
+
+
     val stepCounter = remember{ StepCounter(context.applicationContext) }
 
     var campusCenterCount by remember { mutableIntStateOf(0) }
@@ -178,13 +209,19 @@ fun MainScreen() {
     LaunchedEffect(Unit) {
         //only called when screen loads
         stepCounter.startListen()
-        val receiver = object : BroadcastReceiver() {
+    }
+
+    val receiver = remember {
+        object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 intent?.getStringExtra("movementType")?.let {
-                    movementType = it  // Update UI state with new movement type
+                    movementType = it  // Update UI state
                 }
             }
         }
+    }
+
+    DisposableEffect(Unit) {
         val filter = IntentFilter("com.example.myapplication.TRANSITION_UPDATE")
         ContextCompat.registerReceiver(
             context,
@@ -192,6 +229,10 @@ fun MainScreen() {
             filter,
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
+
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
     }
 
     val stepCount by stepCounter.stepCount.collectAsState()
