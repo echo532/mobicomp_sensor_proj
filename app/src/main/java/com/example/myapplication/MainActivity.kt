@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import kotlinx.coroutines.tasks.await
 import StepCounter
 import android.content.pm.PackageManager
 import android.icu.util.Calendar
@@ -35,30 +36,58 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
 
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+
+
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.tasks.CancellationTokenSource
 
 
 class MainActivity : ComponentActivity() {
+
+
+    val LOCATION_PERMISSIONS = arrayOf(
+        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+        android.Manifest.permission.ACCESS_FINE_LOCATION
+    )
     val STEP_PERMISSIONS = arrayOf(
         android.Manifest.permission.ACTIVITY_RECOGNITION
     )
+
     fun hasStepPermission(): Boolean {
-        //gpt
         return ContextCompat.checkSelfPermission(
             applicationContext,
             android.Manifest.permission.ACTIVITY_RECOGNITION
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    fun hasLocationPermission(): Boolean {
+
+        return ContextCompat.checkSelfPermission(
+            applicationContext,
+            android.Manifest.permission.ACTIVITY_RECOGNITION
+        ) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
        if(!hasStepPermission()){
-           ActivityCompat.requestPermissions(
-               this, STEP_PERMISSIONS, 0
-           )
+           ActivityCompat.requestPermissions(this, STEP_PERMISSIONS, 0)
        }
+        if(!hasLocationPermission()){
+            ActivityCompat.requestPermissions(this, LOCATION_PERMISSIONS, 0)
+        }
+
 
         enableEdgeToEdge()
         setContent {
@@ -176,16 +205,63 @@ fun MainScreen() {
     }
 }
 
-
+//https://github.com/android/platform-samples/blob/main/samples/location/src/main/java/com/example/platform/location/currentLocation/CurrentLocationScreen.kt
 @Composable
 fun MapImage() {
     //TODO: make map appear
-    Box(
-        modifier = Modifier
-            .size(200.dp)
-            .background(Color.Gray, shape = RoundedCornerShape(8.dp))
-    ) {}
+
+    val context = LocalContext.current
+    val mapV = remember { MapView(context) }
+    var googleMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+
+    val locationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+
+    var userLocation by remember { mutableStateOf<LatLng>((LatLng(-34.0, 151.0))) }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+
+            val loc = locationClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token
+            ).await()
+
+            loc?.let {
+                userLocation = LatLng(it.latitude, it.longitude)
+            }
+        }
+    }
+
+    LaunchedEffect(userLocation) {
+        googleMapInstance?.let { googleMap ->
+            googleMap.clear()
+            googleMap.addMarker(MarkerOptions().position(userLocation).title("You are here"))
+            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15f))
+        }
+    }
+
+    //https://developers.google.com/maps/documentation/android-sdk/map
+    AndroidView(
+        factory = { mapV },
+        modifier = Modifier.size(200.dp).background(Color.Gray, shape = RoundedCornerShape(8.dp)),
+        update = { map ->
+            map.onCreate(Bundle())
+            map.getMapAsync { googleMap ->
+                googleMapInstance = googleMap
+                googleMap.addMarker(MarkerOptions().position(userLocation).title("Default marker"))
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 10f))
+            }
+            map.onResume()
+        }
+    )
 }
+
 
 @Composable
 fun ImageHolder(movementType: String) {
