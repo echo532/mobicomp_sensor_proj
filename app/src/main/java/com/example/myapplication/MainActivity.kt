@@ -4,6 +4,7 @@ import kotlinx.coroutines.tasks.await
 import StepCounter
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.Manifest
 import android.content.pm.PackageManager
 import android.icu.util.Calendar
 import android.os.Bundle
@@ -51,6 +52,16 @@ import android.content.Intent
 import com.example.myapplication.MainActivity.Companion.TAG
 import com.google.android.gms.location.GeofencingEvent
 import kotlinx.coroutines.delay
+import com.google.android.gms.location.ActivityTransition
+import com.google.android.gms.location.DetectedActivity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import com.google.android.gms.location.ActivityTransitionRequest
+import com.google.android.gms.location.*
+import com.google.android.gms.location.ActivityRecognition
 
 class MainActivity : ComponentActivity() {
     private lateinit var geofencingClient: GeofencingClient
@@ -89,6 +100,13 @@ class MainActivity : ComponentActivity() {
         }
         resetGeofenceCounts()
         geofencingClient = LocationServices.getGeofencingClient(this)
+            ActivityCompat.requestPermissions(
+                this, STEP_PERMISSIONS, 0
+            )
+        } else{
+            requestActivityUpdates()
+        }
+
         enableEdgeToEdge()
         setContent {
             MainScreen()
@@ -249,6 +267,77 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 }
 
+    fun requestActivityUpdates() {
+        var transitionList = listOf(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.WALKING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.WALKING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
+
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
+
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
+
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.STILL)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.STILL)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()*/
+        )
+
+        var req = ActivityTransitionRequest(transitionList)
+
+        var intent = Intent(this, ActivityTransitionReceiver::class.java)
+        var pendingIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        var activityRecognition = ActivityRecognition.getClient(this)
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, STEP_PERMISSIONS, 0
+            )
+        }
+        activityRecognition
+            .requestActivityTransitionUpdates(req, pendingIntent)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Activity Recognition Started", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to Start Activity Recognition", Toast.LENGTH_SHORT).show()
+            }
+    }
+}
+
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
@@ -273,8 +362,25 @@ fun MainScreen() {
     }
 
     // Step count tracking
+    //TODO: geofencing tracking code
+
+    //TODO: step count tracking code
     LaunchedEffect(Unit) {
         stepCounter.startListen()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                intent?.getStringExtra("movementType")?.let {
+                    movementType = it  // Update UI state with new movement type
+                }
+            }
+        }
+        val filter = IntentFilter("com.example.myapplication.TRANSITION_UPDATE")
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
     val stepCount by stepCounter.stepCount.collectAsState()
 
@@ -286,16 +392,25 @@ fun MainScreen() {
         val seconds = (differenceInMillis / 1000) % 60
         prevTime = nextTime
 
-        val properType = when (previousMovementType) {
-            "Still" -> "stood still"
-            "Walking" -> "walked"
-            "Running" -> "ran"
-            "Driving" -> "drove"
-            else -> "unknown"
+        // makes text appear grammatically correct
+        var properType = ""
+
+        if(movementType != previousMovementType) {
+            when (previousMovementType) {
+                "Still" -> properType = "stood still"
+                "Walking" -> properType = "walked"
+                "Running" -> properType = "ran"
+                "Driving" -> properType = "drove"
+            }
+            val formattedTime = "$minutes minutes, $seconds seconds."
+
+            Toast.makeText(
+                context,
+                "You have just $properType for $formattedTime",
+                Toast.LENGTH_SHORT
+            ).show()
+            previousMovementType = movementType // track current movement type
         }
-        val formattedTime = "$minutes minutes, $seconds seconds."
-        Toast.makeText(context, "You have just $properType for $formattedTime", Toast.LENGTH_SHORT).show()
-        previousMovementType = movementType
     }
     LaunchedEffect(Unit) {
         while(true) {

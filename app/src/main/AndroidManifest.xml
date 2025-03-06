@@ -53,6 +53,8 @@
         <receiver
             android:name=".GeofenceBroadcastReceiver"
             android:exported="true" />
+
+        <receiver android:name=".ActivityTransitionReceiver" android:exported="false"/>
     </application>
 
 </manifest>
