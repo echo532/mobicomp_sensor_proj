@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import StepCounter
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.pm.PackageManager
@@ -40,15 +41,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.ActivityTransition
+import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.IntentFilter
+import com.google.android.gms.location.ActivityTransitionRequest
+import com.google.android.gms.location.*
+import com.google.android.gms.location.ActivityRecognition
+import androidx.compose.ui.viewinterop.AndroidView
 import com.example.myapplication.MainActivity.Companion.TAG
 import com.google.android.gms.location.GeofencingEvent
+import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 
 class MainActivity : ComponentActivity() {
     private lateinit var geofencingClient: GeofencingClient
@@ -114,7 +130,75 @@ class MainActivity : ComponentActivity() {
         // Register geofences
         addGeofences()
     }
+    fun requestActivityUpdates() {
+        var transitionList = listOf(
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.WALKING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.WALKING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
 
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.RUNNING)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
+
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.IN_VEHICLE)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build(),*/
+
+            ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.STILL)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                .build(),
+            /*ActivityTransition.Builder()
+                .setActivityType(DetectedActivity.STILL)
+                .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                .build()*/
+        )
+
+        var req = ActivityTransitionRequest(transitionList)
+
+        var intent = Intent(this, ActivityTransitionReceiver::class.java)
+        var pendingIntent = PendingIntent.getBroadcast(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        var activityRecognition = ActivityRecognition.getClient(this)
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this, STEP_PERMISSIONS, 0
+            )
+        }
+        activityRecognition
+            .requestActivityTransitionUpdates(req, pendingIntent)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Activity Recognition Started", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to Start Activity Recognition", Toast.LENGTH_SHORT).show()
+            }
+    }
     private fun resetGeofenceCounts() {
         sharedPreferences.edit()
             .putInt("UNITY_HALL_COUNT", 0)
@@ -303,12 +387,22 @@ fun MainScreen() {
         val seconds = (differenceInMillis / 1000) % 60
         prevTime = nextTime
 
-        val properType = when (previousMovementType) {
-            "Still" -> "stood still"
-            "Walking" -> "walked"
-            "Running" -> "ran"
-            "Driving" -> "drove"
-            else -> "unknown"
+        var properType = ""
+        if(movementType != previousMovementType) {
+            when (previousMovementType) {
+                "Still" -> properType = "stood still"
+                "Walking" -> properType = "walked"
+                "Running" -> properType = "ran"
+                "Driving" -> properType = "drove"
+            }
+            val formattedTime = "$minutes minutes, $seconds seconds."
+
+            Toast.makeText(
+                context,
+                "You have just $properType for $formattedTime",
+                Toast.LENGTH_SHORT
+            ).show()
+            previousMovementType = movementType // track current movement type
         }
         val formattedTime = "$minutes minutes, $seconds seconds."
         Toast.makeText(context, "You have just $properType for $formattedTime", Toast.LENGTH_SHORT).show()
@@ -353,12 +447,6 @@ fun MainScreen() {
         ImageHolder(movementType)
         Spacer(modifier = Modifier.height(20.dp))
         Text(text = "You are $movementType", fontSize = 18.sp, color = Color.White)
-        Spacer(modifier = Modifier.height(20.dp))
-        MapImage()
-        Spacer(modifier = Modifier.height(20.dp))
-        ImageHolder(movementType)
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(text = "You are $movementType", fontSize = 18.sp, color = Color.White)
     }
 }
 
@@ -383,25 +471,74 @@ private fun fetchUserLocation(context: Context, onLocationFetched: (lat: Double,
 
 @Composable
 fun MapImage() {
-    Box(
-        modifier = Modifier
-            .size(200.dp)
-            .background(Color.Gray, shape = RoundedCornerShape(8.dp))
-    ) {}
+    //TODO: make map appear
+
+    val context = LocalContext.current
+    val mapV = remember { MapView(context) }
+    var googleMapInstance by remember { mutableStateOf<GoogleMap?>(null) }
+
+    val locationClient = remember {
+        LocationServices.getFusedLocationProviderClient(context)
+    }
+
+    var userLocation by remember { mutableStateOf<LatLng>((LatLng(-34.0, 151.0))) }
+
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+
+            val loc = locationClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY, CancellationTokenSource().token
+            ).await()
+
+            loc?.let {
+                userLocation = LatLng(it.latitude, it.longitude)
+            }
+        }
+    }
+
+    LaunchedEffect(userLocation) {
+        googleMapInstance?.let { googleMap ->
+            googleMap.clear()
+            googleMap.addMarker(MarkerOptions().position(userLocation).title("You are here"))
+            googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 15f))
+        }
+    }
+
+    //https://developers.google.com/maps/documentation/android-sdk/map
+    AndroidView(
+        factory = { mapV },
+        modifier = Modifier.size(200.dp).background(Color.Gray, shape = RoundedCornerShape(8.dp)),
+        update = { map ->
+            map.onCreate(Bundle())
+            map.getMapAsync { googleMap ->
+                googleMapInstance = googleMap
+                googleMap.addMarker(MarkerOptions().position(userLocation).title("Default marker"))
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 10f))
+            }
+            map.onResume()
+        }
+    )
 }
 
 @Composable
 fun ImageHolder(movementType: String) {
-    val resourceId = when (movementType) {
-        "Still" -> R.drawable.man_still
-        "Walking" -> R.drawable.man_walking
-        "Running" -> R.drawable.man_running
-        "Driving" -> R.drawable.man_in_car
-        else -> R.drawable.man_still
+    var resourceId: Int
+    when (movementType) {
+        "Still" -> resourceId = R.drawable.man_still
+        "Walking" -> resourceId = R.drawable.man_walking
+        "Running" -> resourceId = R.drawable.man_running
+        "Driving" -> resourceId = R.drawable.man_in_car
+        else -> resourceId = R.drawable.man_still // Default just in case
     }
     Image(
         painter = painterResource(id = resourceId),
         contentDescription = "Placeholder Image",
-        modifier = Modifier.size(200.dp)
+        modifier = Modifier
+            .size(200.dp)
     )
 }
