@@ -3,6 +3,7 @@ package com.example.myapplication
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import com.google.android.gms.location.ActivityTransitionResult
 
 class ActivityTransitionReceiver : BroadcastReceiver() {
@@ -20,6 +21,7 @@ class ActivityTransitionReceiver : BroadcastReceiver() {
                 }
 
                 // Send an update to UI via Broadcast
+                Toast.makeText(context, "Activity: $activityType", Toast.LENGTH_SHORT).show()
                 val updateIntent = Intent("com.example.myapplication.TRANSITION_UPDATE")
                 updateIntent.putExtra("movementType", "$activityType")
                 context?.sendBroadcast(updateIntent)
