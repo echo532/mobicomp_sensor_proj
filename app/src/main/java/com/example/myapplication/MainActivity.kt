@@ -50,6 +50,8 @@ import com.google.android.gms.location.LocationServices
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.location.*
 import com.google.android.gms.location.ActivityRecognition
@@ -71,10 +73,9 @@ class MainActivity : ComponentActivity() {
     val STEP_PERMISSIONS = arrayOf(
         android.Manifest.permission.ACTIVITY_RECOGNITION
     )
+    @RequiresApi(Build.VERSION_CODES.Q)
     val LOCATION_PERMISSIONS = arrayOf(
         android.Manifest.permission.ACCESS_FINE_LOCATION,
-        android.Manifest.permission.ACCESS_COARSE_LOCATION,
-        android.Manifest.permission.ACCESS_BACKGROUND_LOCATION // Add this for Android 10+
     )
 
     fun hasStepPermission(): Boolean {
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
     private val sharedPreferences by lazy {
         getSharedPreferences("GeofenceCounts", Context.MODE_PRIVATE)
     }
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!hasStepPermission()) {
@@ -127,8 +129,25 @@ class MainActivity : ComponentActivity() {
             MainScreen()
         }
 
+        // Check if permission is already granted
+        if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED) {
+            // Permission already granted
+            Toast.makeText(this, "Permission already granted", Toast.LENGTH_SHORT).show()
+        } else {
+            // Request permission
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        }
+
         // Register geofences
         addGeofences()
+
+        requestActivityUpdates()
     }
     fun requestActivityUpdates() {
         var transitionList = listOf(
@@ -136,37 +155,37 @@ class MainActivity : ComponentActivity() {
                 .setActivityType(DetectedActivity.WALKING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
+            ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.WALKING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
+                .build(),
 
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.RUNNING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
+            ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.RUNNING)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
+                .build(),
 
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.IN_VEHICLE)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
+            ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.IN_VEHICLE)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build(),*/
+                .build(),
 
             ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.STILL)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                 .build(),
-            /*ActivityTransition.Builder()
+            ActivityTransition.Builder()
                 .setActivityType(DetectedActivity.STILL)
                 .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
-                .build()*/
+                .build()
         )
 
         var req = ActivityTransitionRequest(transitionList)
@@ -193,9 +212,11 @@ class MainActivity : ComponentActivity() {
         activityRecognition
             .requestActivityTransitionUpdates(req, pendingIntent)
             .addOnSuccessListener {
+                Log.d("TESTING", "AR Started")
                 Toast.makeText(this, "Activity Recognition Started", Toast.LENGTH_SHORT).show()
             }
             .addOnFailureListener {
+                Log.d("TESTING", "AR failed")
                 Toast.makeText(this, "Failed to Start Activity Recognition", Toast.LENGTH_SHORT).show()
             }
     }
@@ -232,6 +253,7 @@ class MainActivity : ComponentActivity() {
         PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun addGeofences() {
         if (ContextCompat.checkSelfPermission(
                 this,
@@ -256,6 +278,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
