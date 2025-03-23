@@ -20,11 +20,7 @@ class ActivityTransitionReceiver : BroadcastReceiver() {
                     else -> "Unknown"
                 }
 
-                // Send an update to UI via Broadcast
-                Toast.makeText(context, "Activity: $activityType", Toast.LENGTH_SHORT).show()
-                val updateIntent = Intent("com.example.myapplication.TRANSITION_UPDATE")
-                updateIntent.putExtra("movementType", "$activityType")
-                context?.sendBroadcast(updateIntent)
+                globalActivityState = activityType
             }
         }
     }

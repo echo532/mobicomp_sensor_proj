@@ -388,13 +388,20 @@ fun MainScreen() {
     var unityHallCount by remember { mutableStateOf(0) }
     var campusCenterCount by remember { mutableStateOf(0) }
     // Movement type tracking
-    var movementType by remember { mutableStateOf("Still") }
+    var movementType by remember { mutableStateOf(globalActivityState) }
+    LaunchedEffect(globalActivityState) {
+        movementType = globalActivityState
+    }
+
+
     var previousMovementType by remember { mutableStateOf(movementType) }
 
     var prevTime = remember {
         val calendar = Calendar.getInstance()
         calendar.timeInMillis
     }
+
+
 
     // Step count tracking
     LaunchedEffect(Unit) {
@@ -451,11 +458,7 @@ fun MainScreen() {
                 .height(20.dp)
                 .background(Color.Blue)
         )
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(onClick = { movementType = "Walking" }) {
-            Text("Remove this button")
-        }
+        Spacer(modifier = Modifier.height(40.dp))
 
         // Text Placeholders
         Text(text = "Visits to Unity Hall geoFence: $unityHallCount", fontSize = 18.sp, color = Color.White)
